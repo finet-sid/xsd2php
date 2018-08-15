@@ -89,21 +89,17 @@ class ShortNamingStrategy implements NamingStrategy
 
     public function getTypeName(Type $type)
     {
-        $name = $this->classify($type->getName());
-        if ($name && substr($name, -4) !== 'Type') {
-            $name .= "Type";
-        }
-        return $name;
+        return $this->classify($type->getName());
     }
 
     public function getAnonymousTypeName(Type $type, $parentName)
     {
-        return $this->classify($parentName) . "AType";
+        return $this->classify($parentName) . "A";
     }
 
     public function getPropertyName($item)
     {
-        return Inflector::camelize(str_replace(".", " ", $item->getName()));
+        return $this->classify($item->getName());
     }
 
     public function getItemName(Item $item)
