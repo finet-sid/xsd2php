@@ -26,6 +26,7 @@ class ClassGenerator
         $class->addConstant('PROPERTY_MAP', $propertyMap);
 
         $method = new MethodGenerator("getPropertyMap", []);
+        $method->setStatic(true);
         if ($class->getExtendedClass()) {
             $methodBody = "\$properties = parent::getPropertyMap();" . PHP_EOL;
         } else {
