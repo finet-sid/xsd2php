@@ -32,7 +32,7 @@ class ClassGenerator
         } else {
             $methodBody = "\$properties = [];" . PHP_EOL;
         }
-        $methodBody .= "return array_merge(\$properties, static::PROPERTY_MAP);" . PHP_EOL;
+        $methodBody .= "return array_merge(\$properties, self::PROPERTY_MAP);" . PHP_EOL;
         $method->setBody($methodBody);
         $class->addMethodFromGenerator($method);
 
