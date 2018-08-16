@@ -1,12 +1,12 @@
 <?php
 namespace GoetasWebservices\Xsd\XsdToPhp\Php;
 
-use Doctrine\Common\Inflector\Inflector;
 use GoetasWebservices\Xsd\XsdToPhp\Php\Structure\PHPClass;
 use GoetasWebservices\Xsd\XsdToPhp\Php\Structure\PHPClassOf;
 use GoetasWebservices\Xsd\XsdToPhp\Php\Structure\PHPProperty;
 use Zend\Code\Generator;
 use Zend\Code\Generator\DocBlock\Tag\ParamTag;
+use Zend\Code\Generator\DocBlock\Tag\GenericTag;
 use Zend\Code\Generator\DocBlock\Tag\PropertyTag;
 use Zend\Code\Generator\DocBlock\Tag\ReturnTag;
 use Zend\Code\Generator\DocBlockGenerator;
@@ -19,16 +19,14 @@ class ClassGenerator
 
     private function handleBody(Generator\ClassGenerator $class, PHPClass $type)
     {
+        $propertyMap = [];
         foreach ($type->getProperties() as $prop) {
             if ($prop->getName() !== '__value') {
-                $this->handleProperty($class, $prop);
+                $propertyMap[$prop->getName()] = $this->handleProperty($class, $prop);
             }
         }
-        foreach ($type->getProperties() as $prop) {
-            if ($prop->getName() !== '__value') {
-                $this->handleMethod($class, $prop, $type);
-            }
-        }
+
+        $class->addConstant('PROPERTY_MAP', $propertyMap);
 
         if (count($type->getProperties()) === 1 && $type->hasProperty('__value')) {
             return false;
@@ -105,221 +103,12 @@ class ClassGenerator
         $generator->addMethodFromGenerator($method);
     }
 
-    private function handleSetter(Generator\ClassGenerator $generator, PHPProperty $prop, PHPClass $class)
-    {
-        $methodBody = '';
-        $docblock = new DocBlockGenerator();
-        $docblock->setWordWrap(false);
-
-        $docblock->setShortDescription("Sets a new " . $prop->getName());
-
-        if ($prop->getDoc()) {
-            $docblock->setLongDescription($prop->getDoc());
-        }
-
-        $patramTag = new ParamTag($prop->getName());
-        $docblock->setTag($patramTag);
-
-        $return = new ReturnTag("self");
-        $docblock->setTag($return);
-
-        $type = $prop->getType();
-
-        $method = new MethodGenerator("set" . Inflector::classify($prop->getName()));
-
-        $parameter = new ParameterGenerator($prop->getName());
-
-        if ($type && $type instanceof PHPClassOf) {
-            $patramTag->setTypes($type->getArg()
-                    ->getType()->getPhpType() . "[]");
-            $parameter->setType("array");
-
-            if ($p = $type->getArg()->getType()->isSimpleType()
-            ) {
-                if (($t = $p->getType())) {
-                    $patramTag->setTypes($t->getPhpType());
-                }
-            }
-        } elseif ($type) {
-            if ($type->isNativeType()) {
-                $patramTag->setTypes($type->getPhpType());
-            } elseif ($p = $type->isSimpleType()) {
-                if (($t = $p->getType()) && !$t->isNativeType()) {
-                    $patramTag->setTypes($t->getPhpType());
-                    $parameter->setType($t->getPhpType());
-                } elseif ($t && !$t->isNativeType()) {
-                    $patramTag->setTypes($t->getPhpType());
-                    $parameter->setType($t->getPhpType());
-                } elseif ($t) {
-                    $patramTag->setTypes($t->getPhpType());
-                }
-            } else {
-                $patramTag->setTypes($type->getPhpType());
-                $parameter->setType($type->getPhpType());
-            }
-        }
-
-        $methodBody .= "\$this->" . $prop->getName() . " = \$" . $prop->getName() . ";" . PHP_EOL;
-        $methodBody .= "return \$this;";
-        $method->setBody($methodBody);
-        $method->setDocBlock($docblock);
-        $method->setParameter($parameter);
-
-        $generator->addMethodFromGenerator($method);
-    }
-
-    private function handleGetter(Generator\ClassGenerator $generator, PHPProperty $prop, PHPClass $class)
-    {
-
-        if ($prop->getType() instanceof PHPClassOf) {
-            $docblock = new DocBlockGenerator();
-            $docblock->setWordWrap(false);
-            $docblock->setShortDescription("isset " . $prop->getName());
-            if ($prop->getDoc()) {
-                $docblock->setLongDescription($prop->getDoc());
-            }
-
-            $patramTag = new ParamTag("index", "int|string");
-            $docblock->setTag($patramTag);
-
-            $docblock->setTag(new ReturnTag("bool"));
-
-            $paramIndex = new ParameterGenerator("index");
-
-            $method = new MethodGenerator("isset" . Inflector::classify($prop->getName()), [$paramIndex]);
-            $method->setDocBlock($docblock);
-            $method->setBody("return isset(\$this->" . $prop->getName() . "[\$index]);");
-            $generator->addMethodFromGenerator($method);
-
-            $docblock = new DocBlockGenerator();
-            $docblock->setWordWrap(false);
-            $docblock->setShortDescription("unset " . $prop->getName());
-            if ($prop->getDoc()) {
-                $docblock->setLongDescription($prop->getDoc());
-            }
-
-            $patramTag = new ParamTag("index", "int|string");
-            $docblock->setTag($patramTag);
-            $paramIndex = new ParameterGenerator("index");
-
-            $docblock->setTag(new ReturnTag("void"));
-
-
-            $method = new MethodGenerator("unset" . Inflector::classify($prop->getName()), [$paramIndex]);
-            $method->setDocBlock($docblock);
-            $method->setBody("unset(\$this->" . $prop->getName() . "[\$index]);");
-            $generator->addMethodFromGenerator($method);
-        }
-        // ////
-
-        $docblock = new DocBlockGenerator();
-        $docblock->setWordWrap(false);
-
-        $docblock->setShortDescription("Gets as " . $prop->getName());
-
-        if ($prop->getDoc()) {
-            $docblock->setLongDescription($prop->getDoc());
-        }
-
-        $tag = new ReturnTag("mixed");
-        $type = $prop->getType();
-        if ($type && $type instanceof PHPClassOf) {
-            $tt = $type->getArg()->getType();
-            $tag->setTypes($tt->getPhpType() . "[]");
-            if ($p = $tt->isSimpleType()) {
-                if (($t = $p->getType())) {
-                    $tag->setTypes($t->getPhpType() . "[]");
-                }
-            }
-        } elseif ($type) {
-
-            if ($p = $type->isSimpleType()) {
-                if ($t = $p->getType()) {
-                    $tag->setTypes($t->getPhpType());
-                }
-            } else {
-                $tag->setTypes($type->getPhpType());
-            }
-        }
-
-        $docblock->setTag($tag);
-
-        $method = new MethodGenerator("get" . Inflector::classify($prop->getName()));
-        $method->setDocBlock($docblock);
-        $method->setBody("return \$this->" . $prop->getName() . ";");
-
-        $generator->addMethodFromGenerator($method);
-    }
-
-    private function handleAdder(Generator\ClassGenerator $generator, PHPProperty $prop, PHPClass $class)
-    {
-        $type = $prop->getType();
-        $propName = $type->getArg()->getName();
-
-        $docblock = new DocBlockGenerator();
-        $docblock->setWordWrap(false);
-        $docblock->setShortDescription("Adds as $propName");
-
-        if ($prop->getDoc()) {
-            $docblock->setLongDescription($prop->getDoc());
-        }
-
-        $return = new ReturnTag();
-        $return->setTypes("self");
-        $docblock->setTag($return);
-
-        $patramTag = new ParamTag($propName, $type->getArg()->getType()->getPhpType());
-        $docblock->setTag($patramTag);
-
-        $method = new MethodGenerator("addTo" . Inflector::classify($prop->getName()));
-
-        $parameter = new ParameterGenerator($propName);
-        $tt = $type->getArg()->getType();
-
-        if (!$tt->isNativeType()) {
-
-            if ($p = $tt->isSimpleType()) {
-                if (($t = $p->getType())) {
-                    $patramTag->setTypes($t->getPhpType());
-
-                    if (!$t->isNativeType()) {
-                        $parameter->setType($t->getPhpType());
-                    }
-                }
-            } elseif (!$tt->isNativeType()) {
-                $parameter->setType($tt->getPhpType());
-            }
-        }
-
-        $methodBody = "\$this->" . $prop->getName() . "[] = \$" . $propName . ";" . PHP_EOL;
-        $methodBody .= "return \$this;";
-        $method->setBody($methodBody);
-        $method->setDocBlock($docblock);
-        $method->setParameter($parameter);
-
-        $generator->addMethodFromGenerator($method);
-    }
-
-    private function handleMethod(Generator\ClassGenerator $generator, PHPProperty $prop, PHPClass $class)
-    {
-        if ($prop->getType() instanceof PHPClassOf) {
-            $this->handleAdder($generator, $prop, $class);
-        }
-
-        $this->handleGetter($generator, $prop, $class);
-        $this->handleSetter($generator, $prop, $class);
-    }
-
     private function handleProperty(Generator\ClassGenerator $class, PHPProperty $prop)
     {
         $generatedProp = new PropertyGenerator($prop->getName());
-        $generatedProp->setVisibility(PropertyGenerator::VISIBILITY_PRIVATE);
+        $generatedProp->setVisibility(PropertyGenerator::VISIBILITY_PUBLIC);
 
         $class->addPropertyFromGenerator($generatedProp);
-
-        if ($prop->getType() && (!$prop->getType()->getNamespace() && $prop->getType()->getName() == "array")) {
-            // $generatedProp->setDefaultValue(array(), PropertyValueGenerator::TYPE_AUTO, PropertyValueGenerator::OUTPUT_SINGLE_LINE);
-        }
 
         $docBlock = new DocBlockGenerator();
         $docBlock->setWordWrap(false);
@@ -351,7 +140,13 @@ class ClassGenerator
                 $tag->setTypes($prop->getType()->getPhpType());
             }
         }
+
+        $propertyTypes = $tag->getTypesAsString();
+
+        $tag = new GenericTag('var', str_replace('@property ', '', $tag->generate()));
         $docBlock->setTag($tag);
+
+        return $propertyTypes;
     }
 
     public function generate(PHPClass $type)
@@ -367,10 +162,8 @@ class ClassGenerator
         $class->setDocblock($docblock);
 
         if ($extends = $type->getExtends()) {
-
             if ($p = $extends->isSimpleType()) {
                 $this->handleProperty($class, $p);
-                $this->handleValueMethod($class, $p, $extends);
             } else {
 
                 $class->setExtendedClass($extends->getFullName());
