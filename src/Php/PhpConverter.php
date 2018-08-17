@@ -2,8 +2,6 @@
 namespace GoetasWebservices\Xsd\XsdToPhp\Php;
 
 use Exception;
-use GoetasWebservices\XML\XSDReader\Schema\Attribute\AttributeItem;
-use GoetasWebservices\XML\XSDReader\Schema\Attribute\Group as AttributeGroup;
 use GoetasWebservices\XML\XSDReader\Schema\Element\Element;
 use GoetasWebservices\XML\XSDReader\Schema\Element\ElementDef;
 use GoetasWebservices\XML\XSDReader\Schema\Element\ElementRef;
@@ -121,18 +119,6 @@ class PhpConverter extends AbstractConverter
                 $this->visitGroup($class, $schema, $childGroup);
             } else {
                 $property = $this->visitElement($class, $schema, $childGroup);
-                $class->addProperty($property);
-            }
-        }
-    }
-
-    private function visitAttributeGroup(PHPClass $class, Schema $schema, AttributeGroup $att)
-    {
-        foreach ($att->getAttributes() as $childAttr) {
-            if ($childAttr instanceof AttributeGroup) {
-                $this->visitAttributeGroup($class, $schema, $childAttr);
-            } else {
-                $property = $this->visitAttribute($class, $schema, $childAttr);
                 $class->addProperty($property);
             }
         }
@@ -361,37 +347,6 @@ class PhpConverter extends AbstractConverter
                 $this->handleClassExtension($class, $parentType);
             }
         }
-        $schema = $type->getSchema();
-
-        foreach ($type->getAttributes() as $attr) {
-            if ($attr instanceof AttributeGroup) {
-                $this->visitAttributeGroup($class, $schema, $attr);
-            } else {
-                $property = $this->visitAttribute($class, $schema, $attr);
-                $class->addProperty($property);
-            }
-        }
-    }
-
-    private function visitAttribute(PHPClass $class, Schema $schema, AttributeItem $attribute, $arrayize = true)
-    {
-        $property = new PHPProperty();
-        $property->setName($this->getNamingStrategy()->getPropertyName($attribute));
-
-        if ($arrayize && $itemOfArray = $this->isArrayType($attribute->getType())) {
-            if ($attribute->getType()->getName()) {
-                $arg = new PHPArg($this->getNamingStrategy()->getPropertyName($attribute));
-                $arg->setType($this->visitType($itemOfArray));
-                $property->setType(new PHPClassOf($arg));
-            } else {
-                $property->setType($this->visitTypeAnonymous($attribute->getType(), $attribute->getName(), $class));
-            }
-        } else {
-            $property->setType($this->findPHPClass($class, $attribute, true));
-        }
-
-        $property->setDoc($attribute->getDoc());
-        return $property;
     }
 
     /**
